@@ -3,6 +3,7 @@ import React from 'react'
 import { GraduationCapIcon, Hand, LayoutDashboardIcon, SettingsIcon } from 'lucide-react'
 import { useKindeBrowserClient } from '@kinde-oss/kinde-auth-nextjs';
 import Image from 'next/image';
+import Link from 'next/link';
 
 function SideNav() {
 
@@ -46,8 +47,11 @@ function SideNav() {
             <hr className='my-5'></hr>
 
             {menuList.map((menu, index) => (
-             <h2 key={menu.id}
-            className='flex items-center gap-3 text-md p-4
+                <Link 
+                key={menu.id} 
+                href={menu.path}>
+                    <h2 
+                        className='flex items-center gap-3 text-md p-4
             text-slate-500
             hover:bg-pimary
             cursor-pointer
@@ -55,12 +59,13 @@ function SideNav() {
             rounded-lg
             my-2
             '>
-                    <menu.icon />
-                    {menu.name}
-                </h2>
+                        <menu.icon />
+                        {menu.name}
+                    </h2>
+                </Link>
             ))}
 
-            <div>
+            <div className='flex gap-2 items-center bottom-5 fixed p-4'>
                 <hr className='my-5'></hr>
                 <img src={user?.picture}
                     height={35}
@@ -68,8 +73,8 @@ function SideNav() {
                     className='rounded-full'
                 />
                 <div>
-                    <h2>{user?.given_name} {user?.family_name}</h2>
-                    <h2>{user?.email}</h2>
+                    <h2 className='text-sm font-bold'>{user?.given_name} {user?.family_name}</h2>
+                    <h2 className='text-xs text-slate-400'>{user?.email}</h2>
                 </div>
             </div>
         </div>
