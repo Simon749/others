@@ -10,9 +10,11 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
+import GlobalApi from "../../../_services/GlobalApi";
 
 function AddNewStudent() {
     const [open, setOpen] = useState(false);
+    const [grades, setGrades] = useState([]);
 
     const {
         register,
@@ -28,13 +30,40 @@ function AddNewStudent() {
 
     const GetAllGradesList = () => {
         // Call API to get all grades
-        GlabalApi.GetAllGrades().then(resp => {
-            console.log(resp.data.results);
+        GlobalApi.GetAllGrades().then(resp => {
+            setGrades(resp.data.results);
         });
     };
 
     const onSubmit = (data) => {
-        console.log("FormData", data);
+        const nameParts = (data.fullName || "").trim().split(/\s+/);
+        const firstName = nameParts[0] || "";
+        const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
+        const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(" ") : "";
+
+        const studentPayload = {
+            admissionNumber: data.admissionNumber,
+            firstName,
+            middleName,
+            lastName,
+            fullName: data.fullName,
+            gender: data.gender,
+            dateOfBirth: data.dateOfBirth,
+            age: Number(data.age),
+            class: data.class,
+            stream: data.stream || null,
+            admissionDate: data.admissionDate || new Date().toISOString(),
+            previousSchool: data.previousSchool || null,
+        };
+
+        GlobalApi.CreateNewStudent(studentPayload)
+            .then(resp => {
+                console.log("Student created successfully", resp.data);
+                setOpen(false);
+            })
+            .catch(err => {
+                console.error("Create student failed", err);
+            });
     };
 
     return (
@@ -51,7 +80,7 @@ function AddNewStudent() {
                                     <input
                                         placeholder="Ex. ADM-2024-001"
                                         type="text"
-                                        required
+                                        {...register("admissionNumber", { required: true })}
                                         className="w-full border rounded p-2"
                                     />
                                 </div>
@@ -61,7 +90,7 @@ function AddNewStudent() {
                                 <input
                                     placeholder="Ex. Kamau John Mwangi"
                                     type="text"
-                                    required
+                                    {...register("fullName", { required: true })}
                                     className="w-full border rounded p-2"
                                 />
                             </div>
@@ -69,7 +98,10 @@ function AddNewStudent() {
                             <div className="py-3 grid grid-cols-2 gap-4">
                                 <div>
                                     <label>Gender *</label>
-                                    <select required className="w-full border rounded p-2">
+                                    <select
+                                        {...register("gender", { required: true })}
+                                        className="w-full border rounded p-2"
+                                    >
                                         <option value="">Select</option>
                                         <option value="male">Male</option>
                                         <option value="female">Female</option>
@@ -77,15 +109,27 @@ function AddNewStudent() {
                                 </div>
                                 <div>
                                     <label>Date of Birth *</label>
-                                    <input type="date" required className="w-full border rounded p-2" />
+                                    <input
+                                        type="date"
+                                        {...register("dateOfBirth", { required: true })}
+                                        className="w-full border rounded p-2"
+                                    />
                                 </div>
                             </div>
 
                             <div className="py-3 grid grid-cols-2 gap-4">
                                 <div>
                                     <label>Class *</label>
-                                    <select required className="w-full border rounded p-2">
+                                    <select
+                                        {...register("class", { required: "Class is required" })}
+                                        className="w-full border rounded p-2"
+                                    >
                                         <option value="">Select Class</option>
+                                        {grades.map((item, index) => (
+                                            <option key={item.id || index} value={item.grade || item.id}>
+                                                {item.grade || item.name || ""}
+                                            </option>
+                                        ))}
                                         <optgroup label="Primary (CBC)">
                                             <option value="grade_1">Grade 1</option>
                                             <option value="grade_2">Grade 2</option>
@@ -107,7 +151,10 @@ function AddNewStudent() {
                                 </div>
                                 <div>
                                     <label>Stream</label>
-                                    <select className="w-full border rounded p-2">
+                                    <select
+                                        {...register("stream")}
+                                        className="w-full border rounded p-2"
+                                    >
                                         <option value="">None</option>
                                         <option value="east">East</option>
                                         <option value="west">West</option>
@@ -201,8 +248,9 @@ function AddNewStudent() {
                                     Save Student
                                 </button>
                                 <button
-                                    type="submit"
+                                    type="button"
                                     className="bg-gray-200 text-gray-700 px-6 py-2 rounded hover:bg-gray-300"
+                                    onClick={() => setOpen(false)}
                                 >
                                     Cancel
                                 </button>
