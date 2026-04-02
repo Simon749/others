@@ -5,4 +5,4 @@ const poolConnection = mysql.createPool({
   user: "br-twilight-math-ad1rnfec",
   database: "br-twilight-math-ad1rnfec",
 });
-const db = drizzle({ client: poolConnection });
+export  const db = drizzle({ client: poolConnection });

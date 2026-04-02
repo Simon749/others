@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -9,26 +9,52 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
+import { useForm } from "react-hook-form";
 
 function AddNewStudent() {
     const [open, setOpen] = useState(false);
+
+    const {
+        register,
+        handleSubmit,
+        watch,
+        formState: { errors },
+    } = useForm()
+
+    useEffect(() => {
+        GetAllGradesList();
+    }, []);
+
+
+    const GetAllGradesList = () => {
+        // Call API to get all grades
+        GlabalApi.GetAllGrades().then(resp => {
+            console.log(resp.data.results);
+        });
+    };
+
+    const onSubmit = (data) => {
+        console.log("FormData", data);
+    };
+
     return (
-        <div className="p-7">
+        <div>
             <Button onClick={() => setOpen(true)}>+ Add New Student</Button>
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Add New Student</DialogTitle>
-                        <DialogDescription>
-                            <div className="py-1">
-                                <label>Admission Number *</label>
-                                <input
-                                    placeholder="Ex. ADM-2024-001"
-                                    type="text"
-                                    required
-                                    className="w-full border rounded p-2"
-                                />
-                            </div>
+                        
+                            <form onSubmit={handleSubmit(onSubmit)}>
+                                <div className="py-1">
+                                    <label>Admission Number *</label>
+                                    <input
+                                        placeholder="Ex. ADM-2024-001"
+                                        type="text"
+                                        required
+                                        className="w-full border rounded p-2"
+                                    />
+                                </div>
 
                             <div className="py-1">
                                 <label>Student Name *</label>
@@ -157,14 +183,14 @@ function AddNewStudent() {
                             </div>
 
                             {/* Medical */}
-                            <div className="py-1">
+                         { /*  <div className="py-1">
                                 <label>Medical Conditions / Special Needs</label>
                                 <textarea
                                     placeholder="Ex. Asthma, Diabetic"
                                     rows="2"
                                     className="w-full border rounded p-2"
                                 />
-                            </div>
+                            </div> */}
 
                             {/* Submit */}
                             <div className="py-6 flex gap-4">
@@ -175,13 +201,14 @@ function AddNewStudent() {
                                     Save Student
                                 </button>
                                 <button
-                                    type="button"
+                                    type="submit"
                                     className="bg-gray-200 text-gray-700 px-6 py-2 rounded hover:bg-gray-300"
                                 >
                                     Cancel
                                 </button>
                             </div>
-                        </DialogDescription>
+                            </form>
+                        
                     </DialogHeader>
                 </DialogContent>
             </Dialog>
