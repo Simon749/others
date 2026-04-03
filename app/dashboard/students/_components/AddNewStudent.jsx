@@ -11,15 +11,19 @@ import {
 } from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import GlobalApi from "../../../_services/GlobalApi";
+import { toast } from "sonner";
+import { Loader2Icon } from "lucide-react";
 
 function AddNewStudent() {
     const [open, setOpen] = useState(false);
     const [grades, setGrades] = useState([]);
+    const [loading, setLoading] = useState(false);
 
     const {
         register,
         handleSubmit,
         watch,
+        reset,
         formState: { errors },
     } = useForm()
 
@@ -36,6 +40,7 @@ function AddNewStudent() {
     };
 
     const onSubmit = (data) => {
+        setLoading(true);
         const nameParts = (data.fullName || "").trim().split(/\s+/);
         const firstName = nameParts[0] || "";
         const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
@@ -63,6 +68,14 @@ function AddNewStudent() {
             })
             .catch(err => {
                 console.error("Create student failed", err);
+                if (resp.data)
+                {
+                    reset();
+                    setLoading(false);
+                    setOpen(false);
+                    toast("Student created successfully");
+                }
+                setLoading(false);
             });
     };
 
@@ -244,7 +257,9 @@ function AddNewStudent() {
                                 <button
                                     type="submit"
                                     className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+                                    disabled={loading}
                                 >
+                                    {loading ? <Loader2Icon className="animate-spin" /> : <Loader2Icon/>}
                                     Save Student
                                 </button>
                                 <button

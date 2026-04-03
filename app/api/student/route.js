@@ -56,3 +56,12 @@ export async function POST(request) {
         return NextResponse.json({ error: err?.message || "Failed to create student" }, { status: 500 });
     }
 }
+
+
+export async function GET() {
+
+
+    const results = await db.select().from(students);
+
+    return NextResponse.json({ data: results });
+}

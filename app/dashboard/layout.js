@@ -4,7 +4,7 @@ import Header from './_components/Header'
 
 const layout = ({ children }) => {
   return (
-    <div>
+    <div >
       <div className='md:w-64 fixed hidden md:block'>
         <SideNav/>
       </div>
