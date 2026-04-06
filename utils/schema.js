@@ -1,12 +1,12 @@
 // utils/schema.js - PURE POSTGRES
-import { 
-  pgTable, 
-  serial, 
-  varchar, 
-  text, 
-  date, 
-  timestamp, 
-  integer 
+import {
+  pgTable,
+  serial,
+  varchar,
+  text,
+  date,
+  timestamp,
+  integer
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
@@ -88,3 +88,11 @@ export const medicalConditionsRelations = relations(medicalConditions, ({ one })
     references: [students.id],
   }),
 }))
+
+export const attendance = pgTable('attendance', {
+  id: serial('id').primaryKey(),
+  studentId: integer('studentId').references(() => students.id).notNull(),
+  date: text('date').notNull(), // Usually YYYY-MM-DD
+  status: text('status').notNull(), // "Present", "Absent", "Late"
+});
+

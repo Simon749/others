@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "../../../utils";
 import { students } from "../../../utils/schema";
+import { eq } from "drizzle-orm";
 
 const calculateAge = (dobString) => {
     if (!dobString) return null;
@@ -58,10 +59,19 @@ export async function POST(request) {
 }
 
 
-export async function GET() {
+export async function GET(request) {
 
 
     const results = await db.select().from(students);
 
     return NextResponse.json({ data: results });
+}
+
+export async function DELETE(request) {
+    const searchParams = request.nextUrl.searchParams;
+    const id = searchParams.get("id");
+
+    const result = await db.delete(students).where(eq(students.id, id));
+
+    return NextResponse.json({ data: result });
 }
