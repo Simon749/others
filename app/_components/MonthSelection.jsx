@@ -6,12 +6,12 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button";
-import { CalenderIcon } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { addMonths } from "date-fns";
 import moment from "moment";
 import { Calendar } from "@/components/ui/calendar"
 
-function MonthlySelection(selectedMonth) {
+function MonthlySelection({ selectedMonth, onMonthChange }) {
 
     const today = new Date();
 
@@ -23,7 +23,7 @@ function MonthlySelection(selectedMonth) {
             <Popover>
                 <PopoverTrigger asChild>
                     <Button variant="outline" className="flex gap-2 text-slate-500">
-                        <CalenderIcon className="h-5 w-5" />
+                        <CalendarIcon className="h-5 w-5" />
                         {moment(month).format("MMMM YYYY")}
                         Month</Button>
                 </PopoverTrigger>

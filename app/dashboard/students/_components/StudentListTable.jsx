@@ -41,7 +41,7 @@ function StudentListTable({ studentList, refreshData }) {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() =>deleteRecord(props?.data?.id)}>Continue</AlertDialogAction>
+                        <AlertDialogAction onClick={() => deleteRecord(props?.data?.id)}>Continue</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
@@ -65,10 +65,10 @@ function StudentListTable({ studentList, refreshData }) {
         studentList && setRowData(studentList);
     }, [studentList]);
 
-    const DeleteRecord=(id)=>{
+    const DeleteRecord = (id) => {
 
-        GlodalApi.DeleteStudentRecord(id).then((res)=>{
-            if(res?.data){
+        GlodalApi.DeleteStudentRecord(id).then((res) => {
+            if (res?.data) {
                 toast("Record deleted successfully")
                 refreshData()
             }
@@ -91,9 +91,8 @@ function StudentListTable({ studentList, refreshData }) {
                         columnDefs={colDefs}
                         quickFilterText={searchInput}
                         pagination={pagination}
-                        paginationPageSize={paginationPageSize}
-                        paginationPageSelector={paginationPageSelector}
-
+                        paginationPageSize={10}
+                        paginationPageSelector={[10, 20, 50]}
                     />
                 </div>
             </AgGridProvider>
