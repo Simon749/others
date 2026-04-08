@@ -14,10 +14,12 @@ import GlobalApi from "../../../_services/GlobalApi";
 import { toast } from "sonner";
 import { Loader2Icon } from "lucide-react";
 
-function AddNewStudent() {
+function AddNewStudent({ refreshData}) {
     const [open, setOpen] = useState(false);
     const [grades, setGrades] = useState([]);
+    const [streams, setStreams] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [streamsLoading, setStreamsLoading] = useState(false);
 
     const {
         register,
@@ -25,18 +27,58 @@ function AddNewStudent() {
         watch,
         reset,
         formState: { errors },
-    } = useForm()
+    } = useForm({
+        defaultValues: {
+            admissionNumber: "",
+            fullName: "",
+            gender: "",
+            dateOfBirth: "",
+            age: "",
+            class: "",
+            stream: ""
+        }
+    })
+
+    // Watch the class field to fetch streams dynamically
+    const selectedClass = watch("class");
 
     useEffect(() => {
         GetAllGradesList();
     }, []);
 
+    useEffect(() => {
+        if (selectedClass) {
+            GetStreamsByClass();
+        } else {
+            setStreams([]);
+        }
+    }, [selectedClass]);
 
     const GetAllGradesList = () => {
         // Call API to get all grades
         GlobalApi.GetAllGrades().then(resp => {
             setGrades(resp.data.results);
         });
+    };
+
+    const GetStreamsByClass = async () => {
+        setStreamsLoading(true);
+        try {
+            // Fetch streams for the selected class
+            const response = await fetch(`/api/streams?gradeId=${selectedClass}`);
+            const data = await response.json();
+            
+            if (data.results) {
+                setStreams(data.results);
+            } else {
+                setStreams([]);
+            }
+        } catch (error) {
+            console.error("Error fetching streams:", error);
+            setStreams([]);
+        } finally {
+            setStreamsLoading(false);
+        }
     };
 
     const onSubmit = (data) => {
@@ -64,17 +106,15 @@ function AddNewStudent() {
         GlobalApi.CreateNewStudent(studentPayload)
             .then(resp => {
                 console.log("Student created successfully", resp.data);
+                reset();
+                refreshData();
+                setLoading(false);
                 setOpen(false);
+                toast("Student created successfully");
             })
             .catch(err => {
                 console.error("Create student failed", err);
-                if (resp.data)
-                {
-                    reset();
-                    setLoading(false);
-                    setOpen(false);
-                    toast("Student created successfully");
-                }
+                toast("Failed to create student");
                 setLoading(false);
             });
     };
@@ -167,13 +207,20 @@ function AddNewStudent() {
                                     <select
                                         {...register("stream")}
                                         className="w-full border rounded p-2"
+                                        disabled={!selectedClass || streamsLoading}
                                     >
-                                        <option value="">None</option>
-                                        <option value="east">East</option>
-                                        <option value="west">West</option>
-                                        <option value="north">North</option>
-                                        <option value="south">South</option>
+                                        <option value="">Select Stream (Optional)</option>
+                                        {streams && streams.length > 0 ? (
+                                            streams.map((item, index) => (
+                                                <option key={item.id || index} value={item.streamName}>
+                                                    {item.description || `Stream ${item.streamName}`}
+                                                </option>
+                                            ))
+                                        ) : (
+                                            <option value="">No streams available for this class</option>
+                                        )}
                                     </select>
+                                    {streamsLoading && <span className="text-xs text-gray-500">Loading streams...</span>}
                                 </div>
                             </div>
 
@@ -185,7 +232,7 @@ function AddNewStudent() {
                                 <input
                                     placeholder="Ex. Mary Wanjiku Kamau"
                                     type="text"
-                                    required
+                                    {...register("parentName", { required: true })}
                                     className="w-full border rounded p-2"
                                 />
                             </div>
@@ -196,8 +243,7 @@ function AddNewStudent() {
                                     <input
                                         placeholder="0712345678"
                                         type="tel"
-                                        required
-                                        pattern="0[79]\d{8}"
+                                        {...register("phone1", { required: true, pattern: /0[79]\d{8}/ })}
                                         className="w-full border rounded p-2"
                                     />
                                 </div>
@@ -206,6 +252,7 @@ function AddNewStudent() {
                                     <input
                                         placeholder="0723456789"
                                         type="tel"
+                                        {...register("phone2")}
                                         className="w-full border rounded p-2"
                                     />
                                 </div>
@@ -217,7 +264,7 @@ function AddNewStudent() {
                             <div className="py-3 grid grid-cols-2 gap-4">
                                 <div>
                                     <label>County *</label>
-                                    <select required className="w-full border rounded p-2">
+                                    <select {...register("county", { required: true })} className="w-full border rounded p-2">
                                         <option value="">Select County</option>
                                         <option value="nairobi">Nairobi</option>
                                         <option value="mombasa">Mombasa</option>
@@ -229,7 +276,7 @@ function AddNewStudent() {
                                 </div>
                                 <div>
                                     <label>Sub-County</label>
-                                    <input placeholder="Ex. Westlands" type="text" className="w-full border rounded p-2" />
+                                    <input placeholder="Ex. Westlands" type="text" {...register("subCounty")} className="w-full border rounded p-2" />
                                 </div>
                             </div>
 
@@ -238,6 +285,7 @@ function AddNewStudent() {
                                 <input
                                     placeholder="Ex. Kawangware, Stage 3"
                                     type="text"
+                                    {...register("village")}
                                     className="w-full border rounded p-2"
                                 />
                             </div>

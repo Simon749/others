@@ -6,13 +6,23 @@ import {
   text,
   date,
   timestamp,
-  integer
+  integer,
+  boolean
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
+
 
 export const GRADES = pgTable("grades", {
   id: serial("id").primaryKey(),
   grade: varchar("grade", { length: 10 }).notNull(),
+})
+
+export const STREAMS = pgTable("streams", {
+  id: serial("id").primaryKey(),
+  gradeId: integer("grade_id").references(() => GRADES.id).notNull(),
+  streamName: varchar("stream_name", { length: 10 }).notNull(), // e.g., "A", "B", "C"
+  description: varchar("description", { length: 100 }), // e.g., "Form 1A"
+  createdAt: timestamp("created_at").defaultNow(),
 })
 
 export const students = pgTable('students', {  // ← pgTable NOT mysqlTable
@@ -89,10 +99,57 @@ export const medicalConditionsRelations = relations(medicalConditions, ({ one })
   }),
 }))
 
+// PHASE 1: USERS TABLE FOR PERMISSIONS & AUDIT
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  email: varchar('email', { length: 255 }).unique().notNull(),
+  fullName: varchar('full_name', { length: 255 }).notNull(),
+  role: varchar('role', { length: 50 }).notNull(), // "admin", "class_teacher", "accountant", "parent"
+  password: varchar('password', { length: 255 }).notNull(), // In production, use hashing!
+  gradeId: integer('grade_id').references(() => GRADES.id), // Which class they teach (NULL if admin)
+  streamId: integer('stream_id').references(() => STREAMS.id), // Which stream they teach (NULL if multi-stream)
+  isActive: boolean('is_active').default(true),
+  lastLogin: timestamp('last_login'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+})
+
+// PHASE 1: ATTENDANCE TABLE - DECLARE BEFORE auditLogs (no forward references)
 export const attendance = pgTable('attendance', {
   id: serial('id').primaryKey(),
   studentId: integer('studentId').references(() => students.id).notNull(),
-  date: text('date').notNull(), // Usually YYYY-MM-DD
-  status: text('status').notNull(), // "Present", "Absent", "Late"
+  gradeId: integer('grade_id').references(() => GRADES.id).notNull(),
+  streamId: integer('stream_id').references(() => STREAMS.id).notNull(),
+  date: text('date').notNull(), // Usually YYYY-MM-DD or YYYY-MM
+  day: integer('day'), // Day of the month
+  present: boolean('present').notNull().default(false),
+  lastModifiedBy: integer('last_modified_by').references(() => users.id), // WHO last changed it
+  lastModifiedAt: timestamp('last_modified_at').defaultNow(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
+
+// PHASE 1: AUDIT LOGS TABLE - TRACKS ALL CHANGES (now attendance is defined)
+export const auditLogs = pgTable('audit_logs', {
+  id: serial('id').primaryKey(),
+  attendanceId: integer('attendance_id').references(() => attendance.id).notNull(),
+  changedBy: integer('changed_by').references(() => users.id).notNull(),
+  previousValue: boolean('previous_value'), // Previous present/absent state
+  newValue: boolean('new_value'), // New present/absent state
+  reason: varchar('reason', { length: 255 }), // Why changed: "Manual entry", "Correction", "Excused", "Medical"
+  ipAddress: varchar('ip_address', { length: 45 }), // Track WHERE change was made
+  userAgent: text('user_agent'), // Browser/client info
+  changedAt: timestamp('changed_at').defaultNow(),
+  statusCode: integer('status_code'), // 200, 400, 500 etc if needed
+})
+
+// PHASE 1: SCHOOL HOLIDAYS TABLE - PREVENT MARKING HOLIDAYS
+export const schoolHolidays = pgTable('school_holidays', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date').notNull(),
+  description: varchar('description', { length: 255 }),
+  createdAt: timestamp('created_at').defaultNow(),
+})
 

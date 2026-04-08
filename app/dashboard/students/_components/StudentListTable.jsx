@@ -91,8 +91,8 @@ function StudentListTable({ studentList, refreshData }) {
                         columnDefs={colDefs}
                         quickFilterText={searchInput}
                         pagination={pagination}
-                        paginationPageSize={10}
-                        paginationPageSelector={[10, 20, 50]}
+                        paginationPageSize={paginationPageSize}
+                        paginationPageSelector={paginationPageSelector}
                     />
                 </div>
             </AgGridProvider>

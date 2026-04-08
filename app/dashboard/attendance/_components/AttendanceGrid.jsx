@@ -2,10 +2,16 @@
 import React, { useEffect, useState } from "react";
 import { AgGridReact } from 'ag-grid-react';
 import moment from "moment";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { toast } from "sonner";
+import GlobalApi from "@/app/_services/GlobalApi";
+import { getUniqueRecords } from "@/app/_services/service";
+
+
+const pagination = true;
+const paginationPageSize = 10;
+const paginationPageSelector = [25, 50, 100];
+
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -13,8 +19,8 @@ function AttendanceGrid({ attendance, selectedMonth }) {
 
     const [rowData, setRowData] = useState([]);
     const [columnDefs, setColumnDefs] = useState([
-        { field: 'studentId' },
-        { field: 'name' },
+        { field: 'studentId', filter: 'true'},
+        { field: 'name',filter: 'true' },
     ]);
 
     const daysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
@@ -24,7 +30,7 @@ function AttendanceGrid({ attendance, selectedMonth }) {
 
     useEffect(() => {
         if (attendance) {
-            const userList = getUniqueRecords();
+            const userList = getUniqueRecords(attendance);
             setRowData(userList);
 
             dayArrays.forEach((date) => {
@@ -52,24 +58,7 @@ function AttendanceGrid({ attendance, selectedMonth }) {
         return result ? true : false;
     }
 
-    /**
-     * used to filter out unique records based on studentId as there can be multiple records for a student in case of multiple attendance entries for different days
-     * 
-     * @returns 
-     */
-
-    const getUniqueRecords = () => {
-        const uniqueRecord = [];
-        const existingUser = new Set();
-
-        attendance?.forEach(record => {
-            if (!existingUser.has(record.studentId)) {
-                existingUser.add(record.studentId);
-                uniqueRecord.push(record);
-            }
-        });
-        return uniqueRecord;
-    }
+    
 
     /**
      * used to mark attendance for a student 
@@ -95,7 +84,14 @@ function AttendanceGrid({ attendance, selectedMonth }) {
             GlobalApi.MarkAttendance(data).then(resp => {
                 console.log(resp);
                 toast("Student Id: " + studentId + " marked present for day: " + day);
-            });
+            })
+        }
+        else {
+            // Mark attendance as absent
+            GlobalApi.MarkAbsent(studentId, day, date).then(resp => {
+                console.log(resp);
+                toast("Student Id: " + studentId + " marked absent for day: " + day);
+            })
         }
     }
 
@@ -110,6 +106,10 @@ function AttendanceGrid({ attendance, selectedMonth }) {
                     rowData={rowData}
                     columnDefs={columnDefs}  
                     onCellValueChanged={(e)=> onMarkAttendance(e.columnDefs.field,e.data.studentId,e.newValue)}
+                    quickFilterText={""}
+                    pagination={pagination}
+                    paginationPageSize={paginationPageSize}
+                    paginationPageSelector={paginationPageSelector}
                 />
             </div>
 
