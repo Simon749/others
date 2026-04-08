@@ -1,28 +1,26 @@
-"use clent"
+"use client"
 import React, {useEffect, useState} from "react";
 import GlobalApi from "@/app/_services/GlobalApi";
 
-function GradeSelection({selectedGrade}) {
+function GradeSelection({ selectedGrade, onGradeChange }) {
     const [grades, setGrades] = useState([]);
 
-        useEffect(() => {
-            GetAllGradesList();
-        }, []);
-    
-    
-        const GetAllGradesList = () => {
-            // Call API to get all grades
-            GlobalApi.GetAllGrades().then(resp => {
-                setGrades(resp.data.results);
-            });
-        };
+    useEffect(() => {
+        GetAllGradesList();
+    }, []);
+
+    const GetAllGradesList = () => {
+        GlobalApi.GetAllGrades().then(resp => {
+            setGrades(resp.data.results);
+        });
+    };
+
     return (
         <div>
             <select
                 value={selectedGrade ?? ""}
-                onChange={(e)=>selectedGrade(e.target.value)}
+                onChange={(e) => onGradeChange?.(e.target.value)}
                 className="border rounded-lg p-2"
-                
             >
                 <option value="">Select Class</option>
                 {grades.map((item, index) => (

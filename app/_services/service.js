@@ -8,7 +8,12 @@
         const uniqueRecord = [];
         const existingUser = new Set();
 
-        attendance?.forEach(record => {
+        // Handle null, undefined, or non-array values
+        if (!attendance || !Array.isArray(attendance)) {
+            return uniqueRecord;
+        }
+
+        attendance.forEach(record => {
             if (!existingUser.has(record.studentId)) {
                 existingUser.add(record.studentId);
                 uniqueRecord.push(record);

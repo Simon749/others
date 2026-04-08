@@ -14,7 +14,7 @@ import GlobalApi from "../../../_services/GlobalApi";
 import { toast } from "sonner";
 import { Loader2Icon } from "lucide-react";
 
-function AddNewStudent({ refreshData}) {
+function AddNewStudent({ refreshData }) {
     const [open, setOpen] = useState(false);
     const [grades, setGrades] = useState([]);
     const [streams, setStreams] = useState([]);
@@ -67,7 +67,7 @@ function AddNewStudent({ refreshData}) {
             // Fetch streams for the selected class
             const response = await fetch(`/api/streams?gradeId=${selectedClass}`);
             const data = await response.json();
-            
+
             if (data.results) {
                 setStreams(data.results);
             } else {
@@ -126,17 +126,17 @@ function AddNewStudent({ refreshData}) {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Add New Student</DialogTitle>
-                        
-                            <form onSubmit={handleSubmit(onSubmit)}>
-                                <div className="py-1">
-                                    <label>Admission Number *</label>
-                                    <input
-                                        placeholder="Ex. ADM-2024-001"
-                                        type="text"
-                                        {...register("admissionNumber", { required: true })}
-                                        className="w-full border rounded p-2"
-                                    />
-                                </div>
+
+                        <form onSubmit={handleSubmit(onSubmit)}>
+                            <div className="py-1">
+                                <label>Admission Number *</label>
+                                <input
+                                    placeholder="Ex. ADM-2024-001"
+                                    type="text"
+                                    {...register("admissionNumber", { required: true })}
+                                    className="w-full border rounded p-2"
+                                />
+                            </div>
 
                             <div className="py-1">
                                 <label>Student Name *</label>
@@ -179,8 +179,8 @@ function AddNewStudent({ refreshData}) {
                                     >
                                         <option value="">Select Class</option>
                                         {grades.map((item, index) => (
-                                            <option key={item.id || index} value={item.grade || item.id}>
-                                                {item.grade || item.name || ""}
+                                            <option key={item.id} value={item.id}> {/* Use item.id, which is a number */}
+                                                {item.grade}
                                             </option>
                                         ))}
                                         <optgroup label="Primary (CBC)">
@@ -291,7 +291,7 @@ function AddNewStudent({ refreshData}) {
                             </div>
 
                             {/* Medical */}
-                         { /*  <div className="py-1">
+                            { /*  <div className="py-1">
                                 <label>Medical Conditions / Special Needs</label>
                                 <textarea
                                     placeholder="Ex. Asthma, Diabetic"
@@ -307,7 +307,7 @@ function AddNewStudent({ refreshData}) {
                                     className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
                                     disabled={loading}
                                 >
-                                    {loading ? <Loader2Icon className="animate-spin" /> : <Loader2Icon/>}
+                                    {loading ? <Loader2Icon className="animate-spin" /> : <Loader2Icon />}
                                     Save Student
                                 </button>
                                 <button
@@ -318,8 +318,8 @@ function AddNewStudent({ refreshData}) {
                                     Cancel
                                 </button>
                             </div>
-                            </form>
-                        
+                        </form>
+
                     </DialogHeader>
                 </DialogContent>
             </Dialog>

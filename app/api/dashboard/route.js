@@ -12,26 +12,31 @@ export async function GET(request) {
         return NextResponse.json({ error: "Missing grade or date parameter" }, { status: 400 });
     }
 
-    // Parse date to ensure it's a valid Date object (adjust format if needed)
-    const date = new Date(dateParam);
-    if (isNaN(date.getTime())) {
-        return NextResponse.json({ error: "Invalid date format" }, { status: 400 });
-    }
-
     try {
+        // Date is stored as string in DB (YYYY-MM or YYYY-MM-DD), so keep it as string
         const results = await db.select({
             day: attendance.day,
             presentCount: db.fn.count(attendance.present),
         }).from(attendance)
             .innerJoin(students, eq(attendance.studentId, students.id))
+            .where(and(
+                eq(attendance.date, dateParam),
+                eq(students.class, grade),
+                eq(attendance.present, true)
+            ))
             .groupBy(attendance.day)
-            .where(and(eq(attendance.date, date), eq(students.grade, grade)))
             .orderBy(desc(attendance.day))
-            .limit(7)
+            .limit(31);
 
-        return NextResponse.json(results);
+        // Drizzle returns count as a numeric value in the aggregation result
+        const formatted = results.map(r => ({
+            day: r.day,
+            presentCount: Number(r.presentCount) || r.presentCount
+        }));
+
+        return NextResponse.json(formatted);
     } catch (error) {
         console.error("Query error:", error);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: "Internal server error", details: error.message }, { status: 500 });
     }
 }

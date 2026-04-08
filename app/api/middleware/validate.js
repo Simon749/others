@@ -17,15 +17,19 @@ export const validateAttendanceEntry = async (data) => {
   if (!data.studentId) errors.push("❌ Student ID is required");
   if (!data.date) errors.push("❌ Date is required");
   if (data.present === undefined) errors.push("❌ Attendance status (present/absent) is required");
+  if (!data.day && !/\d{4}-\d{2}-\d{2}/.test(data.date)) {
+    errors.push("❌ Day of month is required when using YYYY-MM attendance dates");
+  }
 
   if (errors.length > 0) return { valid: false, errors, warnings };
 
-  // 2. VALIDATE DATE FORMAT (YYYY-MM-DD)
-  if (!isValidDateFormat(data.date)) {
-    errors.push("❌ Invalid date format. Use YYYY-MM-DD");
+  const dateInfo = parseAttendanceDate(data.date, data.day);
+  if (!dateInfo.valid) {
+    errors.push(dateInfo.error);
+    return { valid: false, errors, warnings };
   }
 
-  const entryDate = new Date(data.date + "T00:00:00Z");
+  const entryDate = dateInfo.date;
 
   // 3. CANNOT MARK FUTURE DATES
   const today = new Date();
@@ -100,8 +104,30 @@ function isValidDateFormat(dateString) {
   const date = new Date(dateString + "T00:00:00Z");
   return date instanceof Date && !isNaN(date);
 }
+function parseAttendanceDate(dateString, day) {
+  const monthOnly = /^\d{4}-\d{2}$/;
+  const fullDate = /^\d{4}-\d{2}-\d{2}$/;
 
-/**
+  if (fullDate.test(dateString)) {
+    const date = new Date(dateString + "T00:00:00Z");
+    if (isNaN(date.getTime())) {
+      return { valid: false, error: "❌ Invalid full date format. Use YYYY-MM-DD" };
+    }
+    return { valid: true, date };
+  }
+
+  if (monthOnly.test(dateString) && day) {
+    const paddedDay = String(day).padStart(2, "0");
+    const candidate = `${dateString}-${paddedDay}`;
+    const date = new Date(candidate + "T00:00:00Z");
+    if (isNaN(date.getTime())) {
+      return { valid: false, error: "❌ Invalid day for the selected month" };
+    }
+    return { valid: true, date };
+  }
+
+  return { valid: false, error: "❌ Invalid date format. Use YYYY-MM or YYYY-MM-DD" };
+}/**
  * Format validation errors for response
  */
 export const formatValidationResponse = (validation) => {

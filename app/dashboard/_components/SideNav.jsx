@@ -38,48 +38,48 @@ function SideNav() {
     ];
 
     return (
-        <div className='border shadow-md h-screen p-5'>
-            <img src={'/logo.svg'}
-                alt='logo'
-                width={50}
-                height={50} />
-
-            <hr className='my-5'></hr>
-
-            {menuList.map((menu, index) => (
-                <Link 
-                key={menu.id} 
-                href={menu.path}>
-                    <h2 
-                        className='flex items-center gap-3 text-md p-4
-            text-slate-500
-            hover:bg-pimary
-            cursor-pointer
-            hover:text-blue-500
-            rounded-lg
-            my-2
-            '>
-                        <menu.icon />
-                        {menu.name}
-                    </h2>
-                </Link>
-            ))}
-
-            <div className='flex gap-2 items-center bottom-5 fixed p-4'>
-                <hr className='my-5'></hr>
-                <img src={user?.picture}
-                    height={35}
-                    alt='user'
-                    className='rounded-full'
-                />
+        <div className='bg-white border-r border-gray-200 h-screen p-6 shadow-lg'>
+            <div className='flex items-center gap-3 mb-8'>
+                <div className='w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center'>
+                    <GraduationCapIcon className='w-6 h-6 text-white' />
+                </div>
                 <div>
-                    <h2 className='text-sm font-bold'>{user?.given_name} {user?.family_name}</h2>
-                    <h2 className='text-xs text-slate-400'>{user?.email}</h2>
+                    <h1 className='text-lg font-bold text-gray-900'>SchoolTracker</h1>
+                    <p className='text-xs text-gray-500'>Attendance System</p>
+                </div>
+            </div>
+
+            <hr className='my-6 border-gray-200'></hr>
+
+            <div className='space-y-2'>
+                {menuList.map((menu, index) => (
+                    <Link
+                        key={menu.id}
+                        href={menu.path}
+                        className='flex items-center gap-3 text-gray-700 p-3 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-all duration-200 group'
+                    >
+                        <menu.icon className='w-5 h-5 group-hover:text-blue-600' />
+                        <span className='font-medium'>{menu.name}</span>
+                    </Link>
+                ))}
+            </div>
+
+            <div className='absolute bottom-6 left-6 right-6'>
+                <hr className='my-4 border-gray-200'></hr>
+                <div className='flex items-center gap-3 p-3 bg-gray-50 rounded-lg'>
+                    <img src={user?.picture}
+                        height={40}
+                        width={40}
+                        alt='user'
+                        className='rounded-full border-2 border-white shadow-sm'
+                    />
+                    <div className='flex-1 min-w-0'>
+                        <h2 className='text-sm font-semibold text-gray-900 truncate'>{user?.given_name} {user?.family_name}</h2>
+                        <h2 className='text-xs text-gray-500 truncate'>{user?.email}</h2>
+                    </div>
                 </div>
             </div>
         </div>
-
-
     )
 }
 

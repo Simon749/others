@@ -16,7 +16,11 @@ const GetAttendance = (grade, month, stream) => {
 };
 
 const MarkAttendance = (data) => axios.post("/api/attendance", data);
+const BulkMarkAttendance = (attendanceEntries) => axios.post("/api/attendance/bulk", attendanceEntries);
+const GetAttendanceReport = (grade, month) => axios.get(`/api/attendance/report?grade=${grade}&month=${month}`);
+const ExportAttendanceCsv = (grade, month) => axios.get(`/api/attendance/export?grade=${grade}&month=${month}`, { responseType: 'blob' });
 const MarkAbsent = (studentId, day, date) => axios.delete(`/api/attendance?studentId=`+studentId+`&day=`+day+`&date=`+date);
+const SendNotification = (payload) => axios.post("/api/notifications", payload);
 
 const TotalPresentCountByDay = (grade, date) => axios.get(`/api/dashboard?grade=`+grade+`&date=`+date);
 export default {
@@ -26,6 +30,10 @@ export default {
     DeleteStudentRecord,
     GetAttendance,
     MarkAttendance,
+    BulkMarkAttendance,
+    GetAttendanceReport,
+    ExportAttendanceCsv,
     MarkAbsent,
+    SendNotification,
     TotalPresentCountByDay
 }

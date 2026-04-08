@@ -123,6 +123,7 @@ export const attendance = pgTable('attendance', {
   date: text('date').notNull(), // Usually YYYY-MM-DD or YYYY-MM
   day: integer('day'), // Day of the month
   present: boolean('present').notNull().default(false),
+  reason: varchar('reason', { length: 100 }).default('manual_entry'),
   lastModifiedBy: integer('last_modified_by').references(() => users.id), // WHO last changed it
   lastModifiedAt: timestamp('last_modified_at').defaultNow(),
   createdAt: timestamp('created_at').defaultNow(),

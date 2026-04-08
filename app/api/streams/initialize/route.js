@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { db } from "../../../utils";
-import { GRADES, STREAMS } from "../../../utils/schema";
+import { db } from "../../../../utils";
+import { GRADES, STREAMS } from "@/utils/schema";
 
 /**
  * Initialize default streams for grades

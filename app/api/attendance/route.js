@@ -1,12 +1,56 @@
 import { db } from "../../../utils";
-import { attendance, students } from "@/utils/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { attendance, students, GRADES, STREAMS } from "@/utils/schema";
+import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 // PHASE 1 IMPORTS: Validation, Audit, Permissions
 import { validateAttendanceEntry, formatValidationResponse } from "../middleware/validate";
 import { logAttendanceChange, getClientIp } from "../middleware/audit";
 import { checkPermission, canEditClass, USER_ROLES } from "../middleware/permissions";
+
+const resolveGradeAndStreamIds = async ({ studentId, grade, stream, gradeId, streamId }) => {
+    if (gradeId && streamId) return { gradeId, streamId };
+
+    if (gradeId && !streamId && stream) {
+        const streamRecord = await db.select().from(STREAMS).where(and(eq(STREAMS.gradeId, gradeId), eq(STREAMS.streamName, stream))).limit(1);
+        return { gradeId, streamId: streamRecord?.[0]?.id || null };
+    }
+
+    if (!gradeId && studentId) {
+        const studentRecord = await db.select().from(students).where(eq(students.id, studentId)).limit(1);
+        if (studentRecord.length > 0) {
+            const existingGrade = studentRecord[0].class;
+            const existingStream = studentRecord[0].stream;
+            const gradeRow = await db.select().from(GRADES).where(eq(GRADES.grade, existingGrade)).limit(1);
+            const streamRow = await db.select().from(STREAMS).where(and(eq(STREAMS.streamName, existingStream), eq(STREAMS.gradeId, gradeRow?.[0]?.id || 0))).limit(1);
+            return { gradeId: gradeRow?.[0]?.id || null, streamId: streamRow?.[0]?.id || null };
+        }
+    }
+
+    if (grade && stream) {
+        const gradeRow = await db.select().from(GRADES).where(eq(GRADES.grade, grade)).limit(1);
+        const streamRow = await db.select().from(STREAMS).where(and(eq(STREAMS.streamName, stream), eq(STREAMS.gradeId, gradeRow?.[0]?.id || 0))).limit(1);
+        return { gradeId: gradeRow?.[0]?.id || null, streamId: streamRow?.[0]?.id || null };
+    }
+
+    return { gradeId: gradeId || null, streamId: streamId || null };
+};
+
+const buildAttendancePayload = async (item) => {
+    const { gradeId, streamId } = await resolveGradeAndStreamIds(item);
+    const day = item.day ?? new Date(`${item.date}T00:00:00Z`).getUTCDate();
+
+    return {
+        studentId: item.studentId,
+        gradeId: gradeId || 1,
+        streamId: streamId || 1,
+        present: item.present,
+        day,
+        date: item.date,
+        reason: item.reason || (item.present ? "present" : "absent"),
+        lastModifiedBy: item.userId || 1,
+    };
+};
 
 export async function GET(req) {
     const searchParams = req.nextUrl.searchParams;
@@ -80,20 +124,24 @@ export async function POST(request) {
     try {
         // Get current user (TODO: from session/JWT after auth setup)
         const userId = data.userId || 1; // Temporary - will use session later
+        const userRole = data.userRole || USER_ROLES.CLASS_TEACHER;
         
         // PHASE 1: CHECK PERMISSIONS
-        if (!checkPermission(USER_ROLES.CLASS_TEACHER, "attendance:create")) {
+        if (!checkPermission(userRole, "attendance:create")) {
             return NextResponse.json(
                 { error: "Permission denied - only teachers can mark attendance" },
                 { status: 403 }
             );
         }
 
+        const payload = await buildAttendancePayload({ ...data, userId });
+
         // Check if attendance already exists
         const existing = await db.select().from(attendance)
             .where(and(
                 eq(attendance.studentId, data.studentId),
-                eq(attendance.date, data.date)
+                eq(attendance.date, data.date),
+                eq(attendance.day, payload.day)
             ))
             .limit(1);
 
@@ -105,8 +153,9 @@ export async function POST(request) {
             
             result = await db.update(attendance)
                 .set({
-                    present: data.present,
-                    lastModifiedBy: userId,
+                    present: payload.present,
+                    reason: payload.reason,
+                    lastModifiedBy: payload.lastModifiedBy,
                     lastModifiedAt: new Date(),
                 })
                 .where(eq(attendance.id, existing[0].id))
@@ -117,8 +166,8 @@ export async function POST(request) {
                 existing[0].id,
                 userId,
                 previousValue,
-                data.present,
-                data.reason,
+                payload.present,
+                payload.reason,
                 request
             );
 
@@ -131,15 +180,7 @@ export async function POST(request) {
         } else {
             // INSERT NEW
             result = await db.insert(attendance)
-                .values({
-                    studentId: data.studentId,
-                    gradeId: data.gradeId || 1, // Get from form data
-                    streamId: data.streamId || 1, // Get from form data
-                    present: data.present,
-                    day: data.day || new Date(data.date).getDate(),
-                    date: data.date,
-                    lastModifiedBy: userId,
-                })
+                .values(payload)
                 .returning();
 
             // PHASE 1: LOG THE NEW ENTRY
@@ -147,8 +188,8 @@ export async function POST(request) {
                 result[0].id,
                 userId,
                 null,
-                data.present,
-                data.reason || "initial_entry",
+                payload.present,
+                payload.reason,
                 request
             );
 

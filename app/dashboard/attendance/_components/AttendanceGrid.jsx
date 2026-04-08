@@ -1,121 +1,337 @@
 "use client"
-import React, { useEffect, useState } from "react";
-import { AgGridReact } from 'ag-grid-react';
+import React, { useEffect, useMemo, useState } from "react";
+import { AgGridReact } from "ag-grid-react";
 import moment from "moment";
-import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
+import { ModuleRegistry, AllCommunityModule } from "ag-grid-community";
 import { toast } from "sonner";
 import GlobalApi from "@/app/_services/GlobalApi";
 import { getUniqueRecords } from "@/app/_services/service";
-
 
 const pagination = true;
 const paginationPageSize = 10;
 const paginationPageSelector = [25, 50, 100];
 
-
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-function AttendanceGrid({ attendance, selectedMonth }) {
-
+function AttendanceGrid({ attendance = [], selectedMonth }) {
     const [rowData, setRowData] = useState([]);
-    const [columnDefs, setColumnDefs] = useState([
-        { field: 'studentId', filter: 'true'},
-        { field: 'name',filter: 'true' },
-    ]);
+    const [columnDefs, setColumnDefs] = useState([]);
+    const [gridApi, setGridApi] = useState(null);
+    const [history, setHistory] = useState([]);
+    const [backups, setBackups] = useState([]);
 
-    const daysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
-    const numberOfDays = daysInMonth(moment(selectedMonth).format("YYYY"), moment(selectedMonth).format("MM"));
+    const parsedMonth = moment(selectedMonth || new Date());
+    const year = parsedMonth.year();
+    const monthIndex = parsedMonth.month();
 
-    const dayArrays = Array.from({ length: numberOfDays }, (_, i) => i + 1);
+    const dayArrays = useMemo(
+        () => Array.from({ length: new Date(year, monthIndex + 1, 0).getDate() }, (_, i) => i + 1),
+        [year, monthIndex]
+    );
 
     useEffect(() => {
-        if (attendance) {
-            const userList = getUniqueRecords(attendance);
-            setRowData(userList);
+        setBackups(loadSavedBackups());
+    }, []);
 
-            dayArrays.forEach((date) => {
-                setColumnDefs(prevData => [...prevData, {
-                    field: date.toString(), width: 50, editable: true
-                }])
+    useEffect(() => {
+        const users = getUniqueRecords(attendance || []);
+        const rows = users.map((obj) => {
+            const row = { ...obj };
+            dayArrays.forEach((day) => {
+                row[day] = attendance.some((item) => item.day === day && item.studentId === obj.studentId);
+            });
+            return row;
+        });
 
-                userList.forEach(obj => {
-                    obj[date] = isPresent(obj.studentId, date)
-                })
-            })
+        setRowData(rows);
+
+        const dayColumns = dayArrays.map((day) => ({
+            field: day.toString(),
+            headerName: day.toString(),
+            width: 60,
+            editable: true,
+            cellEditor: "agSelectCellEditor",
+            cellEditorParams: {
+                values: ["true", "false"],
+            },
+            valueFormatter: (params) => (params.value ? "✓" : "✗"),
+            cellStyle: { textAlign: "center", padding: "0.25rem" },
+        }));
+
+        setColumnDefs([
+            { field: "studentId", headerName: "ID", width: 110, pinned: "left" },
+            { field: "name", headerName: "Student", minWidth: 180, pinned: "left" },
+            ...dayColumns,
+        ]);
+    }, [attendance, dayArrays]);
+
+    const loadSavedBackups = () => {
+        try {
+            const stored = localStorage.getItem("attendance-backups");
+            return stored ? JSON.parse(stored) : [];
+        } catch (error) {
+            console.error("Unable to load backups", error);
+            return [];
         }
-    }, [attendance]);
+    };
 
-    /**
-     * used to check if a student was present on a particular day
-     * @param {*} studentId
-     * @param {*} day
-     * @returns
-     */
+    const saveBackups = (items) => {
+        try {
+            localStorage.setItem("attendance-backups", JSON.stringify(items));
+        } catch (error) {
+            console.error("Unable to save backups", error);
+        }
+    };
 
+    const recordHistory = (event) => {
+        const action = {
+            id: `${Date.now()}-${event.studentId}-${event.day}`,
+            studentId: event.studentId,
+            day: event.day,
+            oldValue: event.oldValue,
+            newValue: event.newValue,
+            timestamp: new Date().toISOString(),
+        };
+        setHistory((prev) => [action, ...prev].slice(0, 20));
+    };
 
-    const isPresent = (studentId, day) => {
-        const result = attendance.find(item => item.day === day && item.studentId === studentId);
-        return result ? true : false;
-    }
+    const undoLastChange = () => {
+        if (!history.length) {
+            toast.error("No recent edits to undo.");
+            return;
+        }
 
-    
+        const [latest, ...rest] = history;
+        setHistory(rest);
 
-    /**
-     * used to mark attendance for a student 
-     * @param {*} day
-     * @param {*} studentId
-     * @param {*} presentStatus
-     */
+        setRowData((current) =>
+            current.map((row) => {
+                if (row.studentId === latest.studentId) {
+                    return { ...row, [latest.day]: latest.oldValue };
+                }
+                return row;
+            })
+        );
+
+        toast.success("Last attendance edit has been undone.");
+    };
+
+    const backupAttendanceSnapshot = () => {
+        if (!attendance.length) {
+            toast.error("No attendance loaded to back up.");
+            return;
+        }
+
+        const snapshot = {
+            id: Date.now(),
+            createdAt: new Date().toISOString(),
+            month: parsedMonth.format("YYYY-MM"),
+            recordCount: attendance.length,
+            data: attendance,
+        };
+
+        const updated = [snapshot, ...backups].slice(0, 10);
+        setBackups(updated);
+        saveBackups(updated);
+        toast.success("Attendance snapshot saved.");
+    };
+
+    const restoreLatestBackup = () => {
+        if (!backups.length) {
+            toast.error("No backup snapshots available.");
+            return;
+        }
+
+        const latest = backups[0];
+        if (!latest?.data) {
+            toast.error("The backup snapshot is invalid.");
+            return;
+        }
+
+        const rows = getUniqueRecords(latest.data).map((obj) => {
+            const row = { ...obj };
+            dayArrays.forEach((day) => {
+                row[day] = latest.data.some((item) => item.day === day && item.studentId === obj.studentId);
+            });
+            return row;
+        });
+
+        setRowData(rows);
+        toast.success(`Restored attendance snapshot from ${new Date(latest.createdAt).toLocaleString()}`);
+    };
+
+    const parseBooleanValue = (value) => {
+        if (typeof value === "boolean") return value;
+        const lower = `${value}`.toLowerCase().trim();
+        return lower === "true" || lower === "1" || lower === "✓";
+    };
 
     const onMarkAttendance = (day, studentId, presentStatus) => {
+        const date = parsedMonth.format("YYYY-MM");
+        const present = parseBooleanValue(presentStatus);
 
-      const date = moment(selectedMonth).format("YYYY-MM")   
+        const data = {
+            studentId,
+            day,
+            present,
+            date,
+        };
 
-        if (presentStatus)
-        {
-            const data = {
-                studentId: studentId,
-                day: day,
-                present: presentStatus,
-                date: date
-            }
-
-            // Mark attendance as present
-            GlobalApi.MarkAttendance(data).then(resp => {
-                console.log(resp);
-                toast("Student Id: " + studentId + " marked present for day: " + day);
-            })
+        if (present) {
+            GlobalApi.MarkAttendance(data)
+                .then(() => {
+                    toast(`Student ${studentId} marked present for day ${day}`);
+                })
+                .catch((error) => {
+                    console.error(error);
+                    toast.error("Unable to update attendance.");
+                });
+        } else {
+            GlobalApi.MarkAbsent(studentId, day, date)
+                .then(() => {
+                    toast(`Student ${studentId} marked absent for day ${day}`);
+                })
+                .catch((error) => {
+                    console.error(error);
+                    toast.error("Unable to update attendance.");
+                });
         }
-        else {
-            // Mark attendance as absent
-            GlobalApi.MarkAbsent(studentId, day, date).then(resp => {
-                console.log(resp);
-                toast("Student Id: " + studentId + " marked absent for day: " + day);
-            })
+    };
+
+    const onCellValueChanged = (event) => {
+        const day = Number(event.colDef.field);
+        if (!day) return;
+
+        const oldValue = parseBooleanValue(event.oldValue);
+        const newValue = parseBooleanValue(event.newValue);
+
+        if (oldValue === newValue) return;
+
+        recordHistory({ studentId: event.data.studentId, day, oldValue, newValue });
+        onMarkAttendance(day, event.data.studentId, newValue);
+    };
+
+    const onSaveBulk = async () => {
+        if (!gridApi) {
+            toast.error("Unable to save bulk attendance. Try again.");
+            return;
         }
-    }
 
+        const month = parsedMonth.format("YYYY-MM");
+        const entries = [];
 
+        gridApi.forEachNode((node) => {
+            const row = node.data;
+            dayArrays.forEach((day) => {
+                entries.push({
+                    studentId: row.studentId,
+                    date: month,
+                    day,
+                    present: Boolean(row[day]),
+                    reason: Boolean(row[day]) ? "present" : "absent",
+                    userId: 1,
+                });
+            });
+        });
+
+        try {
+            await GlobalApi.BulkMarkAttendance(entries);
+            toast("Bulk attendance saved successfully.");
+        } catch (error) {
+            console.error("Bulk save error:", error);
+            toast.error("Failed to save bulk attendance.");
+        }
+    };
 
     return (
-        <div style={{ height: 500 }} className="ag-theme-alpine">
-
-            {/* Data Grid will fill the size of the parent container */}
-            <div>
-                <AgGridReact
-                    rowData={rowData}
-                    columnDefs={columnDefs}  
-                    onCellValueChanged={(e)=> onMarkAttendance(e.columnDefs.field,e.data.studentId,e.newValue)}
-                    quickFilterText={""}
-                    pagination={pagination}
-                    paginationPageSize={paginationPageSize}
-                    paginationPageSelector={paginationPageSelector}
-                />
+        <div className="space-y-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="space-y-2">
+                    <div className="text-sm font-semibold text-slate-700">Attendance tools</div>
+                    <p className="text-sm text-slate-500">Keep quick history and snapshots for your attendance data.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                    <button
+                        className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:border-blue-500 hover:text-blue-600"
+                        onClick={undoLastChange}
+                    >
+                        Undo last edit
+                    </button>
+                    <button
+                        className="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                        onClick={backupAttendanceSnapshot}
+                    >
+                        Save backup
+                    </button>
+                    <button
+                        className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:border-blue-500 hover:text-blue-600"
+                        onClick={restoreLatestBackup}
+                    >
+                        Restore latest backup
+                    </button>
+                </div>
             </div>
 
+            <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <p className="text-sm text-slate-500">Recent edits</p>
+                    <p className="mt-3 text-3xl font-semibold text-slate-900">{history.length}</p>
+                    <p className="mt-2 text-sm text-slate-500">Undo stack entries stored in the current session.</p>
+                </div>
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <p className="text-sm text-slate-500">Backup snapshots</p>
+                    <p className="mt-3 text-3xl font-semibold text-slate-900">{backups.length}</p>
+                    <p className="mt-2 text-sm text-slate-500">Saved locally in your browser.</p>
+                </div>
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <p className="text-sm text-slate-500">Records</p>
+                    <p className="mt-3 text-3xl font-semibold text-slate-900">{rowData.length}</p>
+                    <p className="mt-2 text-sm text-slate-500">Students loaded into the attendance grid.</p>
+                </div>
+            </div>
 
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm overflow-x-auto">
+                <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <p className="text-base font-semibold text-slate-900">Attendance Grid</p>
+                    <button
+                        className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                        onClick={onSaveBulk}
+                    >
+                        Save Bulk Attendance
+                    </button>
+                </div>
+                <div style={{ minWidth: 920, height: 520 }} className="ag-theme-alpine">
+                    <AgGridReact
+                        rowData={rowData}
+                        columnDefs={columnDefs}
+                        onGridReady={(params) => setGridApi(params.api)}
+                        onCellValueChanged={onCellValueChanged}
+                        pagination={pagination}
+                        paginationPageSize={paginationPageSize}
+                        paginationPageSelector={paginationPageSelector}
+                        suppressRowClickSelection={true}
+                    />
+                </div>
+            </div>
+
+            {backups.length > 0 && (
+                <div className="grid gap-3 md:grid-cols-2">
+                    {backups.slice(0, 2).map((backup) => (
+                        <div key={backup.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-sm font-semibold text-slate-900">Snapshot</p>
+                                    <p className="text-sm text-slate-500">{new Date(backup.createdAt).toLocaleString()}</p>
+                                </div>
+                                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">{backup.recordCount} records</span>
+                            </div>
+                            <p className="mt-3 text-sm text-slate-600">Month: {backup.month}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
-    )
+    );
 }
 
 export default AttendanceGrid;

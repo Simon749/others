@@ -1,54 +1,60 @@
+// scripts/seed.js
 import 'dotenv/config';
-import { db } from "./utils"; // Adjust based on where your db connection is
-import { students } from "./utils/schema"; // Import students table
-import { faker } from '@faker-js/faker'; // Optional: npm install @faker-js/faker for random data
-import * as schema from "./utils/schema";
-
-
+import { db } from "./utils"; // Adjust path to your db export
+import { students } from "./utils/schema"; // Adjust path to your schema
 
 async function seed() {
-  console.log("Clearing existing students...");
+  console.log("🌱 Starting seed...");
   
+  // Clear existing data
   try {
     await db.delete(students);
     console.log("✅ Cleared existing students");
   } catch (error) {
-    console.log("(No students to clear)");
+    console.log("ℹ️  No students to clear");
   }
   
   const studentRecords = [];
   const grades = ["Form 1", "Form 2", "Form 3", "Form 4"];
   const streams = ["A", "B", "C"];
   const genders = ["Male", "Female"];
+  const firstNames = ["John", "Mary", "Kevin", "Stacy", "Jabari", "Zahra", "Otieno", "Wanjiku", "Brian", "Faith"];
+  const lastNames = ["Kamau", "Onyango", "Musyoka", "Omollo", "Maina", "Kiptoo", "Mutua", "Wangari", "Koech"];
 
   for (let i = 1; i <= 100; i++) {
-    // Generate realistic names
-    const firstName = ["John", "Mary", "Kevin", "Stacy", "Jabari", "Zahra", "Otieno", "Wanjiku"][Math.floor(Math.random() * 8)];
-    const lastName = ["Kamau", "Onyango", "Musyoka", "Omollo", "Maina", "Kiptoo", "Mutua"][Math.floor(Math.random() * 7)];
-    const fullName = `${firstName} ${lastName}`;
-
+    const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+    const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+    const grade = grades[Math.floor(Math.random() * grades.length)];
+    const stream = streams[Math.floor(Math.random() * streams.length)];
+    const gender = genders[Math.floor(Math.random() * genders.length)];
+    
+    // Randomize age based on form
+    const baseAge = grade === "Form 1" ? 13 : grade === "Form 2" ? 14 : grade === "Form 3" ? 15 : 16;
+    const age = baseAge + Math.floor(Math.random() * 2);
+    const birthYear = 2026 - age;
+    
     studentRecords.push({
       admissionNumber: `ADM-2026-${String(i).padStart(3, '0')}`,
-      firstName: firstName,
-      lastName: lastName,
-      fullName: fullName,
-      gender: genders[Math.floor(Math.random() * genders.length)],
-      dateOfBirth: "2015-05-10", // You can randomize this
-      age: 10,
-      class: grades[Math.floor(Math.random() * grades.length)],
-      stream: streams[Math.floor(Math.random() * streams.length)],
+      firstName,
+      lastName,
+      fullName: `${firstName} ${lastName}`,
+      gender,
+      dateOfBirth: `${birthYear}-05-10`,
+      age,
+      class: grade,
+      stream,
     });
   }
 
-  console.log(`Seeding 100 students...`);
+  console.log(`📝 Inserting ${studentRecords.length} students...`);
   
-  try {
-    await db.insert(students).values(studentRecords);
-    console.log("✅ Database seeded successfully!");
-  } catch (error) {
-    console.error("❌ Seeding failed:", error);
-  }
-  process.exit();
+  await db.insert(students).values(studentRecords);
+  console.log("✅ Database seeded successfully!");
+  
+  process.exit(0);
 }
 
-seed();
+seed().catch((err) => {
+  console.error("❌ Seeding failed:", err);
+  process.exit(1);
+});
