@@ -42,11 +42,11 @@ export async function POST(request) {
                 lastName,
                 fullName,
                 gender: data.gender,
-                dateOfBirth: data.dateOfBirth,
+                dateOfBirth: new Date(data.dateOfBirth),
                 age: ageValue,
                 class: data.class,
                 stream: data.stream || null,
-                admissionDate: data.admissionDate || new Date().toISOString(),
+                admissionDate: data.admissionDate ? new Date(data.admissionDate) : new Date(),
                 previousSchool: data.previousSchool || null,
             })
             .returning();

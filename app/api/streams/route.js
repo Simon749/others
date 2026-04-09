@@ -7,6 +7,12 @@ export async function GET(request) {
     const searchParams = request.nextUrl.searchParams;
     const gradeId = searchParams.get("gradeId");
 
+    const numericGradeId = parseInt(gradeId.replace(/\D/g, ""));
+
+    if (isNaN(numericGradeId)) {
+    return Response.json({ error: "Invalid ID" }, { status: 400 });
+  }
+
     if (!gradeId) {
         return NextResponse.json({ error: "gradeId is required" }, { status: 400 });
     }
@@ -20,7 +26,7 @@ export async function GET(request) {
                 gradeId: STREAMS.gradeId,
             })
             .from(STREAMS)
-            .where(eq(STREAMS.gradeId, parseInt(gradeId)))
+            .where(eq(STREAMS.gradeId, numericGradeId))
             .orderBy(STREAMS.streamName);
 
         return NextResponse.json({ results: streams });
