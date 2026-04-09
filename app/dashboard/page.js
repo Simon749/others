@@ -50,13 +50,18 @@ const dashboard = () => {
       return;
     }
 
+    console.log("Fetching for Grade:", selectedGrade, "Date:", moment(selectedMonth).format("YYYY-MM"));
+
     GlodalApi.TotalPresentCountByDay(selectedGrade, moment(selectedMonth).format("YYYY-MM"))
     .then(resp => {
-      // Handle response - ensure it's an array
-      setTotalPresentData(Array.isArray(resp.data) ? resp.data : [])
+      console.log("API RAW DATA:", resp.data); // CRITICAL LOG
+      
+      // Ensure the data is in the format the Chart expects
+      const formattedData = Array.isArray(resp.data) ? resp.data : [];
+      setTotalPresentData(formattedData);
     })
     .catch(err => {
-      console.error("Error fetching present count data:", err);
+      console.error("Dashboard API Error:", err.response?.data || err.message);
       setTotalPresentData([]);
     })
   }

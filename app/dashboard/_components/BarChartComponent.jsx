@@ -6,27 +6,40 @@ function BarChartComponet({ attendance, totalPresentData }) {
 
     const [data, setData] = useState([]);
 
-    useEffect(() =>{
+    useEffect(() => {
         formatAttendanceListCount();
-    },[attendance || totalPresentData])
+    }, [attendance || totalPresentData]);
 
     const formatAttendanceListCount = () => {
+        // 1. Guard clause: Ensure we have arrays to work with
         if (!Array.isArray(attendance) || !Array.isArray(totalPresentData)) {
             setData([]);
             return;
         }
 
-        const totalStudent = getUniqueRecords(attendance);
+        // 2. Get total unique students
+        const totalStudentList = getUniqueRecords(attendance) || [];
+        const studentCount = totalStudentList.length;
 
-        const result = totalPresentData.map((item=>({
-            day: item.day,
-            presentCount: item.presentCount || 0,
-            AbsentCount: Math.max(0, Number(totalStudent?.length || 0) - Number(item.presentCount || 0)),
-            totalStudents: totalStudent?.length || 0
-        })))
+        // 3. Map the data safely
+        const result = totalPresentData.map((item) => {
+            const present = Number(item.presentCount) || 0;
 
-        setData(result)
-    }
+            // Defensive check: If studentCount is 0, we can't accurately calculate Absentees
+            // This usually happens if the student list API failed or is empty
+            const absent = studentCount > 0 ? Math.max(0, studentCount - present) : 0;
+
+            return {
+                day: item.day,
+                presentCount: present,
+                AbsentCount: absent,
+                totalStudents: studentCount
+            };
+        });
+
+        console.log("Chart Processed Data:", result); // Keep an eye on this in the browser console!
+        setData(result);
+    };
 
     const CustomTooltip = ({ active, payload, label }) => {
         if (active && payload && payload.length) {
