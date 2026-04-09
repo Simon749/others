@@ -1,5 +1,3 @@
-// app/api/audit/route.js
-// PHASE 1: AUDIT TRAIL ENDPOINT - VIEW CHANGE HISTORY
 
 import { db } from "../../../utils";
 import { auditLogs, attendance, students, users } from "@/utils/schema";
