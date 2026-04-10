@@ -32,10 +32,12 @@ function Student() {
     const GetAllStudents = async () => {
         try {
             const resp = await GlobalApi.GetAllStudents();
-            setStudentList(Array.isArray(resp.data) ? resp.data : []);
+            // If your API wraps data in 'results', use that. 
+            // If it's a direct array, use resp.data.
+            const data = resp.data.results || resp.data;
+            setStudentList(Array.isArray(data) ? data : []);
         } catch (error) {
-            console.error("Failed to load students", error);
-            toast.error("Unable to load student list.");
+            console.error("Failed to fetch students", error);
         }
     };
 

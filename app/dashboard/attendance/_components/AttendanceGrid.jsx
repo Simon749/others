@@ -13,9 +13,17 @@ const paginationPageSelector = [25, 50, 100];
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-function AttendanceGrid({ attendance = [], selectedMonth }) {
+function AttendanceGrid({ attendance = [], studentList = [], selectedMonth }) {
     const [rowData, setRowData] = useState([]);
-    const [columnDefs, setColumnDefs] = useState([]);
+    const [columnDefs, setColumnDefs] = useState([
+        {
+            headerName: 'Student Name',
+            field: 'fullName', // Must be 'fullName' to match your database log!
+            pinned: 'left',
+            filter: true,
+            width: 200
+        },
+    ]);
     const [gridApi, setGridApi] = useState(null);
     const [history, setHistory] = useState([]);
     const [backups, setBackups] = useState([]);
@@ -30,40 +38,60 @@ function AttendanceGrid({ attendance = [], selectedMonth }) {
     );
 
     useEffect(() => {
-        setBackups(loadSavedBackups());
-    }, []);
+        // 1. Identify our source of students (prioritize the master list of 103)
+        const baseList = studentList.length > 0 ? studentList : getUniqueRecords(attendance);
+
+        if (baseList.length > 0) {
+            const rows = baseList.map((student) => {
+                // 2. Map the ID and Name to match your Neon DB column names
+                const sId = student.id || student.studentId;
+                const sName = student.fullName || student.name;
+
+                const row = {
+                    studentId: sId,
+                    fullName: sName, // Ag-Grid looks for this 'field'
+                };
+
+                // 3. Fill in the attendance checkboxes for each day
+                dayArrays.forEach((day) => {
+                    const record = attendance.find(
+                        (att) => att.studentId === sId && att.day === day
+                    );
+                    // Default to false (Absent) so teachers can mark them present
+                    row[day] = record ? record.present : false;
+                });
+
+                return row;
+            });
+
+            setRowData(rows);
+        }
+    }, [attendance, studentList, dayArrays]);
 
     useEffect(() => {
-        const users = getUniqueRecords(attendance || []);
-        const rows = users.map((obj) => {
-            const row = { ...obj };
+        // If we have marks, use them. If not, use the studentList template.
+        const baseList = studentList.length > 0 ? studentList : getUniqueRecords(attendance);
+
+        const rows = baseList.map((student) => {
+            // Ensure we have a consistent ID
+            const sId = student.studentId || student.id;
+            const row = {
+                ...student,
+                studentId: sId,
+                name: student.name
+            };
+
+            // Fill in the days of the month
             dayArrays.forEach((day) => {
-                row[day] = attendance.some((item) => item.day === day && item.studentId === obj.studentId);
+                const record = attendance.find(att => att.studentId === sId && att.day === day);
+                // Default to 'false' so teachers can click to change to 'true'
+                row[day] = record ? record.present : false;
             });
             return row;
         });
 
         setRowData(rows);
-
-        const dayColumns = dayArrays.map((day) => ({
-            field: day.toString(),
-            headerName: day.toString(),
-            width: 60,
-            editable: true,
-            cellEditor: "agSelectCellEditor",
-            cellEditorParams: {
-                values: ["true", "false"],
-            },
-            valueFormatter: (params) => (params.value ? "✓" : "✗"),
-            cellStyle: { textAlign: "center", padding: "0.25rem" },
-        }));
-
-        setColumnDefs([
-            { field: "studentId", headerName: "ID", width: 110, pinned: "left" },
-            { field: "name", headerName: "Student", minWidth: 180, pinned: "left" },
-            ...dayColumns,
-        ]);
-    }, [attendance, dayArrays]);
+    }, [attendance, studentList, dayArrays]);
 
     const loadSavedBackups = () => {
         try {
@@ -212,11 +240,6 @@ function AttendanceGrid({ attendance = [], selectedMonth }) {
     };
 
     const onSaveBulk = async () => {
-        if (!gridApi) {
-            toast.error("Unable to save bulk attendance. Try again.");
-            return;
-        }
-
         const month = parsedMonth.format("YYYY-MM");
         const entries = [];
 
@@ -226,20 +249,19 @@ function AttendanceGrid({ attendance = [], selectedMonth }) {
                 entries.push({
                     studentId: row.studentId,
                     date: month,
-                    day,
-                    present: Boolean(row[day]),
-                    reason: Boolean(row[day]) ? "present" : "absent",
-                    userId: 1,
+                    day: day,
+                    present: row[day],
+                    gradeId: selectedGrade, // Passed from parent
+                    streamId: selectedStream  // Passed from parent
                 });
             });
         });
 
         try {
             await GlobalApi.BulkMarkAttendance(entries);
-            toast("Bulk attendance saved successfully.");
+            toast.success("Attendance synced to server");
         } catch (error) {
-            console.error("Bulk save error:", error);
-            toast.error("Failed to save bulk attendance.");
+            toast.error("Network error. Please try again.");
         }
     };
 

@@ -26,6 +26,8 @@ function StudentListTable({ studentList = [], refreshData, onSelectionChange }) 
         if (!query) return studentList;
 
         return studentList.filter((student) => {
+            console.log("Raw Student List:", studentList);
+            console.log("Filtered Students:", filteredStudents);
             const name = (student.fullName || student.name || "").toString().toLowerCase();
             const admissionDate = (student.admissionNumber || "").toString().toLowerCase();
             const grade = (student.class || student.grade || "").toString().toLowerCase();

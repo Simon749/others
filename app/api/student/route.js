@@ -3,6 +3,8 @@ import { db } from "../../../utils";
 import { students } from "../../../utils/schema";
 import { eq } from "drizzle-orm";
 
+export const dynamic = 'force-dynamic';
+
 const calculateAge = (dobString) => {
     if (!dobString) return null;
     const dob = new Date(dobString);
@@ -60,11 +62,21 @@ export async function POST(request) {
 
 
 export async function GET(request) {
+    try {
+        // Force fresh data from Neon
+        const results = await db.select().from(students);
 
+        // Log this to your terminal - if you see the student here, 
+        // the problem is 100% in your frontend component's state
+        console.log("FETCHED STUDENTS FROM DB:", results.length);
 
-    const results = await db.select().from(students);
-
-    return NextResponse.json({ data: results });
+        return NextResponse.json({
+            results: results, // Matches the .results pattern you used in grades
+            success: true
+        });
+    } catch (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 }
 
 export async function DELETE(request) {

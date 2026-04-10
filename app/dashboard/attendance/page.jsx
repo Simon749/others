@@ -15,36 +15,47 @@ import { toast } from "sonner";
 
 function Attendance() {
     const [selectedMonth, setSelectedMonth] = useState(new Date());
-    const [selectedGrade, setSelectedGrade] = useState(""); 
+    const [selectedGrade, setSelectedGrade] = useState("");
     const [selectedStream, setSelectedStream] = useState("");
     const [attendance, setAttendance] = useState([]);
     const [report, setReport] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+    const [studentList, setStudentList] = useState([]);
 
     /**
      * used to fetch attendance data based on selected grade, stream, and month
     */
     const onSearchHandler = async () => {
-        if (!selectedGrade || !selectedMonth) {
-            toast.error("Please select both Grade and Month");
-            return;
-        }
-
         setIsLoading(true);
         try {
             const month = moment(selectedMonth).format("YYYY-MM");
-            const resp = await GlobalApi.GetAttendance(selectedGrade, month, selectedStream);
-            setAttendance(Array.isArray(resp.data) ? resp.data : []);
-            toast.success("Attendance data loaded successfully");
+
+            // 1. Fetch Marks
+            const attResp = await GlobalApi.GetAttendance(selectedGrade, month, selectedStream);
+            setAttendance(Array.isArray(attResp.data) ? attResp.data : []);
+
+            // 2. Fetch Students
+            const studResp = await GlobalApi.GetAllStudents();
+
+            // Use .results to get to that list of 103 students
+            const allStudents = studResp.data?.results || [];
+
+            if (Array.isArray(allStudents)) {
+                const filtered = allStudents.filter(s => {
+                    // In your logs, the key is 'class' (e.g., 'grade_4')
+                    return s.class === selectedGrade && (!selectedStream || s.stream === selectedStream);
+                });
+
+                setStudentList(filtered);
+                toast.success(`Loaded ${filtered.length} students`);
+            }
         } catch (err) {
-            console.error("Error fetching attendance:", err);
-            setAttendance([]);
-            toast.error("Failed to fetch attendance data");
+            toast.error("Failed to sync with database");
         } finally {
             setIsLoading(false);
         }
-    }
+    };
 
     const onDownloadCsv = async () => {
         if (!selectedGrade || !selectedMonth) {
@@ -280,7 +291,7 @@ function Attendance() {
                 )}
 
                 {/* Attendance Grid */}
-                {attendance.length > 0 && (
+                {(attendance.length > 0 || studentList.length > 0) && (
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
@@ -294,7 +305,9 @@ function Attendance() {
                         <CardContent>
                             <AttendanceGrid
                                 attendance={attendance}
+                                studentList={studentList}
                                 selectedMonth={selectedMonth}
+                                selectedGrade={selectedGrade}
                                 selectedStream={selectedStream}
                             />
                         </CardContent>

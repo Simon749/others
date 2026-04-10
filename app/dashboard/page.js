@@ -36,7 +36,8 @@ const dashboard = () => {
     GlodalApi.GetAttendance(selectedGrade, moment(selectedMonth).format("YYYY-MM"))
     .then(resp => {
       // Handle response - ensure it's an array
-      setAttendance(Array.isArray(resp.data) ? resp.data : [])
+      const actualData = resp.data.data || resp.data;
+      setAttendance(Array.isArray(actualData) ? actualData : [])
     })
     .catch(err => {
       console.error("Error fetching attendance:", err);
