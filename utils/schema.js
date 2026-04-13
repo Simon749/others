@@ -1,4 +1,3 @@
-// utils/schema.js - PURE POSTGRES
 import {
   pgTable,
   serial,
@@ -102,6 +101,7 @@ export const medicalConditionsRelations = relations(medicalConditions, ({ one })
 // PHASE 1: USERS TABLE FOR PERMISSIONS & AUDIT
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
+  kindeId: text("kinde_id").unique().notNull(),
   email: varchar('email', { length: 255 }).unique().notNull(),
   fullName: varchar('full_name', { length: 255 }).notNull(),
   role: varchar('role', { length: 50 }).notNull(), // "admin", "class_teacher", "accountant", "parent"
@@ -119,7 +119,7 @@ export const attendance = pgTable('attendance', {
   id: serial('id').primaryKey(),
   studentId: integer('studentId').references(() => students.id).notNull(),
   gradeId: integer('grade_id').references(() => GRADES.id).notNull(),
-  streamId: integer('stream_id').references(() => STREAMS.id).notNull(),
+  streamId: integer('stream_id').references(() => STREAMS.id),
   date: text('date').notNull(), // Usually YYYY-MM-DD or YYYY-MM
   day: integer('day'), // Day of the month
   present: boolean('present').notNull().default(false),

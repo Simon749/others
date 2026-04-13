@@ -6,6 +6,8 @@ import { ModuleRegistry, AllCommunityModule } from "ag-grid-community";
 import { toast } from "sonner";
 import GlobalApi from "@/app/_services/GlobalApi";
 import { getUniqueRecords } from "@/app/_services/service";
+import { useKindeAuth } from "@kinde-oss/kinde-auth-nextjs";
+import axios from "axios";
 
 const pagination = true;
 const paginationPageSize = 10;
@@ -13,8 +15,13 @@ const paginationPageSelector = [25, 50, 100];
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-function AttendanceGrid({ attendance = [], studentList = [], selectedMonth }) {
+function AttendanceGrid({ attendance = [], studentList = [], selectedMonth = [], selectedGrade = [], selectedStream = [] }) {
     const [rowData, setRowData] = useState([]);
+    const { getToken } = useKindeAuth();
+    const daysInMonth = Array.from(
+        { length: moment(selectedMonth).daysInMonth() },
+        (_, i) => i + 1
+    );
     const [columnDefs, setColumnDefs] = useState([
         {
             headerName: 'Student Name',
@@ -23,6 +30,27 @@ function AttendanceGrid({ attendance = [], studentList = [], selectedMonth }) {
             filter: true,
             width: 200
         },
+        ...daysInMonth.map(day => ({
+            headerName: day.toString(),
+            field: day.toString(),
+            width: 60,
+            editable: true, // Allows clicking the checkbox
+            cellRenderer: 'agCheckboxCellRenderer', // Use built-in checkbox
+            cellStyle: { display: 'flex', justifyContent: 'center' }
+        })),
+        {
+            headerName: 'Total %',
+            field: 'attendancePercentage',
+            pinned: 'right',
+            width: 100,
+            cellClass: 'font-bold text-blue-600',
+            valueGetter: (params) => {
+                // Simple logic to calculate % on the fly
+                const days = Object.keys(params.data).filter(key => !isNaN(key));
+                const present = days.filter(d => params.data[d] === true).length;
+                return ((present / days.length) * 100).toFixed(0) + '%';
+            }
+        }
     ]);
     const [gridApi, setGridApi] = useState(null);
     const [history, setHistory] = useState([]);
@@ -36,6 +64,29 @@ function AttendanceGrid({ attendance = [], studentList = [], selectedMonth }) {
         () => Array.from({ length: new Date(year, monthIndex + 1, 0).getDate() }, (_, i) => i + 1),
         [year, monthIndex]
     );
+
+    const saveAttendance = async (attendanceData) => {
+        try {
+            // 1. getToken() returns a promise, you MUST await it
+            const token = await getToken();
+
+            // 2. Add a check to ensure we have a token
+            if (!token) {
+                toast.error("Authentication session expired. Please log in again.");
+                return;
+            }
+
+            await axios.post('/api/attendance', attendanceData, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+            toast.success("Attendance saved successfully!");
+        } catch (error) {
+            console.error("Save failed:", error);
+            toast.error("Failed to save attendance. Please try again.");
+        }
+    };
 
     useEffect(() => {
         // 1. Identify our source of students (prioritize the master list of 103)
@@ -243,17 +294,33 @@ function AttendanceGrid({ attendance = [], studentList = [], selectedMonth }) {
         const month = parsedMonth.format("YYYY-MM");
         const entries = [];
 
+
+
+
         gridApi.forEachNode((node) => {
             const row = node.data;
             dayArrays.forEach((day) => {
-                entries.push({
-                    studentId: row.studentId,
-                    date: month,
-                    day: day,
-                    present: row[day],
-                    gradeId: selectedGrade, // Passed from parent
-                    streamId: selectedStream  // Passed from parent
-                });
+                if (row[day] !== undefined && row[day] !== null) {
+                    const numericGradeId = typeof selectedGrade === 'string'
+                        ? parseInt(selectedGrade.replace(/\D/g, ''))
+                        : selectedGrade;
+
+                    const numericStreamId = typeof selectedStream === 'string'
+                        ? parseInt(selectedStream.replace(/\D/g, ''))
+                        : selectedStream;
+                    if (!isNaN(numericGradeId) && !isNaN(numericStreamId)) {
+                        entries.push({
+                            studentId: row.studentId,
+                            date: month,
+                            day: day,
+                            present: row[day] === true || row[day] === 'true' || row[day] === '✓',
+                            grade_id: numericGradeId,   // Send pure integer
+                            stream_id: numericStreamId,
+                            reason: 'present',
+                            last_modified_by: 1
+                        });
+                    }
+                }
             });
         });
 
@@ -327,11 +394,22 @@ function AttendanceGrid({ attendance = [], studentList = [], selectedMonth }) {
                         rowData={rowData}
                         columnDefs={columnDefs}
                         onGridReady={(params) => setGridApi(params.api)}
-                        onCellValueChanged={onCellValueChanged}
-                        pagination={pagination}
-                        paginationPageSize={paginationPageSize}
-                        paginationPageSelector={paginationPageSelector}
-                        suppressRowClickSelection={true}
+                        onCellValueChanged={(event) => {
+                            const updatedData = {
+                                studentId: event.data.studentId,
+                                day: event.colDef.field,
+                                present: event.newValue
+                            };
+                            saveAttendance(updatedData);
+                            recordHistory({ ...updatedData, oldValue: event.oldValue });
+                        }}
+                        pagination={true}
+                        paginationPageSize={10}
+                        paginationPageSizeSelector={[10, 20, 50, 100]}
+                        rowSelection={{
+                            mode: 'multiRow',
+                            enableClickSelection: true
+                        }}
                     />
                 </div>
             </div>

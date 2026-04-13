@@ -1,5 +1,5 @@
 import { db } from "../../../../utils";
-import { attendance, students } from "@/utils/schema";
+import { attendance, students, STREAMS } from "@/utils/schema";
 import { and, eq, gte, lte } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -42,7 +42,7 @@ export async function GET(request) {
             studentId: students.id,
             name: students.fullName,
             studentGrade: students.class,
-            stream: students.stream,
+            stream: STREAMS.name,
             date: attendance.date,
             day: attendance.day,
             present: attendance.present,
@@ -50,6 +50,7 @@ export async function GET(request) {
         })
             .from(attendance)
             .innerJoin(students, eq(attendance.studentId, students.id))
+            .leftJoin(STREAMS, eq(attendance.streamId, STREAMS.id))
             .where(and(
                 eq(students.class, grade),
                 gte(attendance.date, range.startDate),
@@ -66,7 +67,11 @@ export async function GET(request) {
                 escapeCsv(row.name),
                 escapeCsv(row.studentGrade),
                 escapeCsv(row.stream),
-                escapeCsv(row.date?.toISOString?.()?.split("T")[0] ?? row.date),
+                escapeCsv(
+                    row.date instanceof Date
+                        ? row.date.toISOString().split("T")[0]
+                        : row.date
+                ),
                 escapeCsv(row.day),
                 escapeCsv(row.present),
                 escapeCsv(row.reason),

@@ -1,7 +1,8 @@
 import { db } from "../../../utils";
-import { attendance, students, GRADES, STREAMS } from "@/utils/schema";
+import { attendance, students, GRADES, STREAMS, users } from "@/utils/schema";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 
 // PHASE 1 IMPORTS: Validation, Audit, Permissions
 import { validateAttendanceEntry, formatValidationResponse } from "../middleware/validate";
@@ -109,23 +110,29 @@ export async function GET(req) {
 export async function POST(request) {
     const data = await request.json();
 
-    // PHASE 1: VALIDATE INPUT
-    const validation = await validateAttendanceEntry(data);
-    if (!validation.valid) {
-        return NextResponse.json(
-            {
-                success: false,
-                ...formatValidationResponse(validation),
-            },
-            { status: 400 }
-        );
+    // 1. Get the authenticated user from your session (the real teacher)
+    const { getUser } = getKindeServerSession();
+    const authUser = await getUser();
+
+
+    // 2. Look up the ID from your database table
+    const [dbUser] = await db.select({ id: users.id })
+        .from(users)
+        .where(eq(users.kindeId, authUser.id)) // Use your Kinde ID here
+        .limit(1);
+
+    if (!dbUser) {
+        return NextResponse.json({ error: "User not found in system" }, { status: 401 });
     }
+
+
+    const userId = dbUser.id;
 
     try {
         // Get current user (TODO: from session/JWT after auth setup)
         const userId = data.userId || 1; // Temporary - will use session later
         const userRole = data.userRole || USER_ROLES.CLASS_TEACHER;
-        
+
         // PHASE 1: CHECK PERMISSIONS
         if (!checkPermission(userRole, "attendance:create")) {
             return NextResponse.json(
@@ -146,11 +153,11 @@ export async function POST(request) {
             .limit(1);
 
         let result;
-        
+
         if (existing.length > 0) {
             // UPDATE EXISTING
             const previousValue = existing[0].present;
-            
+
             result = await db.update(attendance)
                 .set({
                     present: payload.present,
@@ -214,47 +221,50 @@ export async function POST(request) {
 
 export async function DELETE(req) {
     const searchParams = req.nextUrl.searchParams;
-    const attendanceId = searchParams.get("attendanceId");
-    const userId = searchParams.get("userId") || 1; // Temporary
+    const rawAttendanceId = searchParams.get("attendanceId");
+    
+    // 1. Validate Input: Ensure ID exists and is a valid number
+    if (!rawAttendanceId) {
+        return NextResponse.json({ error: "Missing attendanceId parameter" }, { status: 400 });
+    }
+    
+    const attendanceId = parseInt(rawAttendanceId, 10);
+    if (isNaN(attendanceId)) {
+        return NextResponse.json({ error: "Invalid attendanceId format" }, { status: 400 });
+    }
 
-    // PHASE 1: CHECK PERMISSIONS
+
+    const { getUser } = getKindeServerSession();
+    const authUser = await getUser();
+    
+    // ... lookup user logic ...
+    const userId = dbUser.id; // retrieved from db
+
+    // 3. Permission Check
     if (!checkPermission(USER_ROLES.ADMIN, "attendance:delete")) {
-        return NextResponse.json(
-            { error: "Permission denied - only admins can delete attendance" },
-            { status: 403 }
-        );
+        return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
 
     try {
-        // Get current record before deleting (for audit)
-        const current = await db.select().from(attendance)
-            .where(eq(attendance.id, parseInt(attendanceId)))
+        // 4. Atomic Verification
+        const [current] = await db.select().from(attendance)
+            .where(eq(attendance.id, attendanceId))
             .limit(1);
 
-        if (current.length === 0) {
+        if (!current) {
             return NextResponse.json({ error: "Record not found" }, { status: 404 });
         }
 
-        // PHASE 1: LOG THE DELETION
-        await logAttendanceChange(
-            parseInt(attendanceId),
-            userId,
-            current[0].present,
-            null, // Deleted
-            "deleted",
-            req
-        );
-
-        const result = await db.delete(attendance)
-            .where(eq(attendance.id, parseInt(attendanceId)));
-
-        return NextResponse.json({
-            success: true,
-            message: "Attendance record deleted",
-            data: result,
+        // 5. Transactional Integrity
+        // Ideally, use a transaction to ensure log and delete happen together
+        await db.transaction(async (tx) => {
+            await logAttendanceChange(attendanceId, userId, current.present, null, "deleted", req);
+            await tx.delete(attendance).where(eq(attendance.id, attendanceId));
         });
+
+        return NextResponse.json({ success: true, message: "Attendance record deleted" });
     } catch (error) {
         console.error("Error deleting attendance:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }
