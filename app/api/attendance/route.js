@@ -108,137 +108,121 @@ export async function GET(req) {
 }
 
 export async function POST(request) {
-    const data = await request.json();
-
-    // 1. Get the authenticated user from your session (the real teacher)
-    const { getUser } = getKindeServerSession();
-    const authUser = await getUser();
-
-
-    // 2. Look up the ID from your database table
-    const [dbUser] = await db.select({ id: users.id })
-        .from(users)
-        .where(eq(users.kindeId, authUser.id)) // Use your Kinde ID here
-        .limit(1);
-
-    if (!dbUser) {
-        return NextResponse.json({ error: "User not found in system" }, { status: 401 });
-    }
-
-
-    const userId = dbUser.id;
-
     try {
-        // Get current user (TODO: from session/JWT after auth setup)
-        const userId = data.userId || 1; // Temporary - will use session later
-        const userRole = data.userRole || USER_ROLES.CLASS_TEACHER;
+        const data = await request.json();
+        const { getUser } = getKindeServerSession();
+        const authUser = await getUser();
 
-        // PHASE 1: CHECK PERMISSIONS
-        if (!checkPermission(userRole, "attendance:create")) {
-            return NextResponse.json(
-                { error: "Permission denied - only teachers can mark attendance" },
-                { status: 403 }
-            );
+        if (!authUser) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        // 1. Look up or CREATE the user
+        let [dbUser] = await db.select().from(users).where(eq(users.kindeId, authUser.id));
+
+        if (!dbUser) {
+            const [newUser] = await db.insert(users).values({
+                kindeId: authUser.id,
+                email: authUser.email,
+                fullName: `${authUser.given_name} ${authUser.family_name}`,
+                role: "CLASS_TEACHER",
+                password: "NO_PASSWORD_KIND_AUTH"
+            }).returning();
+            dbUser = newUser;
+        }
+
+        const userId = dbUser.id;
+        const userRole = dbUser.role;
+
+        // 2. CHECK PERMISSIONS (Case-insensitive)
+        if (!checkPermission(userRole.toLowerCase(), "attendance:create")) {
+            return NextResponse.json({ error: "Permission denied" }, { status: 403 });
+        }
+
+        // 3. Build & Sanitize Payload
         const payload = await buildAttendancePayload({ ...data, userId });
 
-        // Check if attendance already exists
+        const cleanPayload = {
+            ...payload,
+            // Force integer conversion for DB compatibility
+            grade_id: typeof payload.gradeId === 'string'
+                ? parseInt(payload.gradeId.replace('grade_', ''), 10)
+                : parseInt(payload.gradeId, 10),
+            stream_id: parseInt(payload.streamId || payload.streamId, 10),
+            day: parseInt(payload.day, 10),
+            studentId: parseInt(payload.studentId, 10)
+        };
+
+        // 4. Check if attendance exists
         const existing = await db.select().from(attendance)
             .where(and(
-                eq(attendance.studentId, data.studentId),
-                eq(attendance.date, data.date),
-                eq(attendance.day, payload.day)
-            ))
-            .limit(1);
+                eq(attendance.studentId, cleanPayload.studentId),
+                eq(attendance.date, cleanPayload.date),
+                eq(attendance.day, cleanPayload.day)
+            )).limit(1);
 
-        let result;
-
+        // 5. Atomic Insert/Update
         if (existing.length > 0) {
-            // UPDATE EXISTING
-            const previousValue = existing[0].present;
-
-            result = await db.update(attendance)
+            const result = await db.update(attendance)
                 .set({
-                    present: payload.present,
-                    reason: payload.reason,
-                    lastModifiedBy: payload.lastModifiedBy,
+                    present: cleanPayload.present,
+                    reason: cleanPayload.reason,
+                    lastModifiedBy: userId,
                     lastModifiedAt: new Date(),
                 })
                 .where(eq(attendance.id, existing[0].id))
                 .returning();
 
-            // PHASE 1: LOG THE CHANGE
-            await logAttendanceChange(
-                existing[0].id,
-                userId,
-                previousValue,
-                payload.present,
-                payload.reason,
-                request
-            );
-
-            return NextResponse.json({
-                success: true,
-                message: "Attendance updated successfully",
-                data: result[0],
-                action: "updated",
-            });
+            await logAttendanceChange(existing[0].id, userId, existing[0].present, cleanPayload.present, cleanPayload.reason, request);
+            return NextResponse.json({ success: true, action: "updated", data: result[0] });
         } else {
-            // INSERT NEW
-            result = await db.insert(attendance)
-                .values(payload)
+            const result = await db.insert(attendance)
+                .values(cleanPayload) // <-- USE THE CLEANED DATA
                 .returning();
 
-            // PHASE 1: LOG THE NEW ENTRY
-            await logAttendanceChange(
-                result[0].id,
-                userId,
-                null,
-                payload.present,
-                payload.reason,
-                request
-            );
-
-            return NextResponse.json({
-                success: true,
-                message: "Attendance marked successfully",
-                data: result[0],
-                action: "created",
-            });
+            await logAttendanceChange(result[0].id, userId, null, cleanPayload.present, cleanPayload.reason, request);
+            return NextResponse.json({ success: true, action: "created", data: result[0] });
         }
     } catch (error) {
-        console.error("Error marking attendance:", error);
-        return NextResponse.json(
-            {
-                error: "Failed to mark attendance",
-                details: error.message,
-            },
-            { status: 500 }
-        );
+        console.error("Critical Failure:", error);
+        return NextResponse.json({ error: "Failed to mark attendance", details: error.message }, { status: 500 });
     }
 }
 
 export async function DELETE(req) {
     const searchParams = req.nextUrl.searchParams;
     const rawAttendanceId = searchParams.get("attendanceId");
-    
+
     // 1. Validate Input: Ensure ID exists and is a valid number
     if (!rawAttendanceId) {
         return NextResponse.json({ error: "Missing attendanceId parameter" }, { status: 400 });
     }
-    
+
     const attendanceId = parseInt(rawAttendanceId, 10);
     if (isNaN(attendanceId)) {
         return NextResponse.json({ error: "Invalid attendanceId format" }, { status: 400 });
     }
 
-
     const { getUser } = getKindeServerSession();
     const authUser = await getUser();
-    
-    // ... lookup user logic ...
-    const userId = dbUser.id; // retrieved from db
+
+    if (!authUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // 1. Look up or CREATE the user
+    let [dbUser] = await db.select().from(users).where(eq(users.kindeId, authUser.id));
+
+    if (!dbUser) {
+        console.log("User not found, auto-registering:", authUser.email);
+        const [newUser] = await db.insert(users).values({
+            kindeId: authUser.id,
+            email: authUser.email,
+            fullName: `${authUser.given_name} ${authUser.family_name}`,
+            role: "CLASS_TEACHER" // Set default role         
+        }).returning();
+        dbUser = newUser;
+    }
+
+    const userId = dbUser.id;
 
     // 3. Permission Check
     if (!checkPermission(USER_ROLES.ADMIN, "attendance:delete")) {

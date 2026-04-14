@@ -48,6 +48,11 @@ export const PERMISSIONS = {
  * @returns {boolean}
  */
 export const checkPermission = (userRole, action, context = {}) => {
+
+  console.log("Checking:", action, "For Role:", userRole);
+  console.log("Allowed Roles:", PERMISSIONS[action]);
+  console.log("Is Included:", PERMISSIONS[action]?.includes(userRole));
+
   // Super admin can do anything
   if (userRole === USER_ROLES.SUPER_ADMIN) return true;
 
@@ -59,7 +64,7 @@ export const checkPermission = (userRole, action, context = {}) => {
     return false;
   }
 
-  return allowedRoles.includes(userRole);
+  return allowedRoles.includes(userRole.toLowerCase());
 };
 
 /**

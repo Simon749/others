@@ -105,7 +105,7 @@ export const users = pgTable('users', {
   email: varchar('email', { length: 255 }).unique().notNull(),
   fullName: varchar('full_name', { length: 255 }).notNull(),
   role: varchar('role', { length: 50 }).notNull(), // "admin", "class_teacher", "accountant", "parent"
-  password: varchar('password', { length: 255 }).notNull(), // In production, use hashing!
+  password: varchar('password', { length: 255 }), // In production, use hashing!
   gradeId: integer('grade_id').references(() => GRADES.id), // Which class they teach (NULL if admin)
   streamId: integer('stream_id').references(() => STREAMS.id), // Which stream they teach (NULL if multi-stream)
   isActive: boolean('is_active').default(true),
@@ -153,4 +153,6 @@ export const schoolHolidays = pgTable('school_holidays', {
   description: varchar('description', { length: 255 }),
   createdAt: timestamp('created_at').defaultNow(),
 })
+
+
 
