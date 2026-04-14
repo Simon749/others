@@ -66,25 +66,30 @@ function AttendanceGrid({ attendance = [], studentList = [], selectedMonth = [],
     );
 
     const saveAttendance = async (attendanceData) => {
+        console.log("--- STARTING SAVE ATTEMPT ---");
         try {
-            // 1. getToken() returns a promise, you MUST await it
             const token = await getToken();
+            console.log("Token acquired:", token ? "YES" : "NO");
 
-            // 2. Add a check to ensure we have a token
-            if (!token) {
-                toast.error("Authentication session expired. Please log in again.");
-                return;
-            }
+            console.log("Sending Axios POST to /api/attendance with data:", attendanceData);
 
-            await axios.post('/api/attendance', attendanceData, {
+            const response = await axios.post('/api/attendance', attendanceData, {
                 headers: {
                     Authorization: `Bearer ${token}`
                 }
             });
-            toast.success("Attendance saved successfully!");
+
+            console.log("Response received:", response.data);
+            toast.success("Attendance saved!");
         } catch (error) {
-            console.error("Save failed:", error);
-            toast.error("Failed to save attendance. Please try again.");
+            // This will catch the error that is currently staying hidden
+            console.error("--- AXIOS ERROR DETAILS ---");
+            if (error.response) {
+                console.error("Status:", error.response.status);
+                console.error("Data:", error.response.data);
+            } else {
+                console.error("Message:", error.message);
+            }
         }
     };
 
@@ -394,14 +399,20 @@ function AttendanceGrid({ attendance = [], studentList = [], selectedMonth = [],
                         rowData={rowData}
                         columnDefs={columnDefs}
                         onGridReady={(params) => setGridApi(params.api)}
-                        onCellValueChanged={(event) => {
-                            const updatedData = {
+                        onCellValueChanged={async (event) => {
+                            console.log("Cell changed!", event.data, event.newValue);
+
+                            // Prepare the payload for your DB
+                            const attendanceData = {
                                 studentId: event.data.studentId,
                                 day: event.colDef.field,
-                                present: event.newValue
+                                present: event.newValue,
+                                gradeId: selectedGrade,
+                                streamId: selectedStream
                             };
-                            saveAttendance(updatedData);
-                            recordHistory({ ...updatedData, oldValue: event.oldValue });
+
+                            // Call the function we fixed previously
+                            await saveAttendance(attendanceData);
                         }}
                         pagination={true}
                         paginationPageSize={10}
